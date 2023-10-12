@@ -6,19 +6,7 @@ import pandas as pd
 import numpy as np
 
 import src.ibov_constituents as mi
-
-
-def correlDist(corr):
-    # A distance matrix based on correlation, where 0<=d[i,j]<=1
-    # This is a proper distance metric
-    dist = ((1 - corr) / 2.0) ** 0.5  # distance matrix
-    return dist
-
-
-def find_nearest(array, value):
-    array = np.asarray(array)
-    idx = (np.abs(array - value)).argmin()
-    return idx
+from src.helper import correlDist, find_nearest
 
 
 class KMedoideAlocacaoIntraGrupo(object):
@@ -31,9 +19,9 @@ class KMedoideAlocacaoIntraGrupo(object):
 
     def _calcular_meses(self):
         datas = pd.DataFrame(self.precos.index)
-        datas["amanha"] = datas.date.shift(-1)
+        datas["next"] = datas.date.shift(-1)
         self.meses = pd.DataFrame(
-            datas[datas.date.dt.month != datas.amanha.dt.month].date
+            datas[datas.date.dt.month != datas.next.dt.month].date
         )
 
     def fit(self, k=3, window=3, max_iter=10):
