@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 
 
-from src.kmedoids import KMedoidScenario3
+from src.kmedoids import KMedoidScenario2
 from src.backtest import calculate_cumret, calculate_sharpe_ratio
 from src.config import get_data
 
@@ -45,7 +45,7 @@ def main():
     # Iterate through different values of 'k' (clusters) for k-medoids
     for k in range(3, 21):
         # Initialize and fit the k-medoids model
-        km = KMedoidScenario3(
+        km = KMedoidScenario2(
             prices_pivot[prices_pivot.index >= datetime.datetime(2007, 12, 30)],
             tickers,
             debug=False,
