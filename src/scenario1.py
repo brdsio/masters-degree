@@ -1,4 +1,5 @@
 from typing import List, Dict
+import random
 import datetime
 from decimal import Decimal
 import pandas as pd
@@ -44,65 +45,71 @@ def main():
 
     # Iterate through different values of 'k' (clusters) for k-medoids
     for k in range(3, 21):
-        # Initialize and fit the k-medoids model
-        km = KMedoidScenario1(
-            prices_pivot[prices_pivot.index >= datetime.datetime(2007, 1, 30)],
-            tickers,
-            debug=False,
-        )
-        km.fit(k=k, window=13)
-        km.pesos()
+        random.seed(123)
 
-        # Extract and preprocess the allocation data within the specified date range
-        pesos = km.pesos_rebals[
-            (km.pesos_rebals.date >= date_begin) & (km.pesos_rebals.date <= date_end)
-        ].copy()
-        pesos["date"] = pd.to_datetime(pesos["date"])
+        for _ in list(range(1, 11)):
+            # Initialize and fit the k-medoids model
+            km = KMedoidScenario1(
+                prices_pivot[prices_pivot.index >= datetime.datetime(2007, 1, 30)],
+                tickers,
+                debug=False,
+            )
+            km.fit(k=k, window=13)
+            km.pesos()
 
-        # Calculate cumulative returns and turnover
-        cumret, turnover = calculate_cumret(
-            pesos.pivot_table(index="date", columns="ticker", values="peso").fillna(0),
-            prices_pivot,
-            prices_trading,
-        )
+            # Extract and preprocess the allocation data within the specified date range
+            pesos = km.pesos_rebals[
+                (km.pesos_rebals.date >= date_begin)
+                & (km.pesos_rebals.date <= date_end)
+            ].copy()
+            pesos["date"] = pd.to_datetime(pesos["date"])
 
-        # Calculate various performance metrics
-        mean_turnover = turnover[1:].mean() * 100
-        cumret = cumret.dropna().loc[:date_end]
+            # Calculate cumulative returns and turnover
+            cumret, turnover = calculate_cumret(
+                pesos.pivot_table(index="date", columns="ticker", values="peso").fillna(
+                    0
+                ),
+                prices_pivot,
+                prices_trading,
+            )
 
-        ret = cumret.tail(1).sub(1).mul(100).round(1).values[0][0]
+            # Calculate various performance metrics
+            mean_turnover = turnover[1:].mean() * 100
+            cumret = cumret.dropna().loc[:date_end]
 
-        volatility = (
-            cumret.dropna()
-            .loc[:date_end]
-            .pct_change()
-            .std()
-            .mul(np.sqrt(252))
-            .mul(100)
-            .round(1)
-            .values[0]
-        )
-        max_drawdown = (
-            cumret.div(cumret.expanding().max())
-            .sub(1)
-            .mul(100)
-            .min()
-            .round(1)
-            .values[0]
-        )
-        sharpe = calculate_sharpe_ratio(cumret, cdi)
+            ret = cumret.tail(1).sub(1).mul(100).round(1).values[0][0]
 
-        # Store the results in a dictionary
-        dict_result = {
-            "k": k,
-            "return": round(Decimal(ret), 1),
-            "volatility": round(Decimal(volatility), 1),
-            "turnover": round(Decimal(mean_turnover), 1),
-            "drawdown": round(Decimal(max_drawdown), 1),
-            "sharpe": round(Decimal(sharpe), 1),
-        }
+            volatility = (
+                cumret.dropna()
+                .loc[:date_end]
+                .pct_change()
+                .std()
+                .mul(np.sqrt(252))
+                .mul(100)
+                .round(1)
+                .values[0]
+            )
+            max_drawdown = (
+                cumret.div(cumret.expanding().max())
+                .sub(1)
+                .mul(100)
+                .min()
+                .round(1)
+                .values[0]
+            )
+            sharpe = calculate_sharpe_ratio(cumret, cdi)
 
-        # Append the results dictionary to the results list
-        results.append(dict_result)
+            # Store the results in a dictionary
+            dict_result = {
+                "k": k,
+                "return": round(Decimal(ret), 1),
+                "volatility": round(Decimal(volatility), 1),
+                "turnover": round(Decimal(mean_turnover), 1),
+                "drawdown": round(Decimal(max_drawdown), 1),
+                "sharpe": round(Decimal(sharpe), 1),
+            }
+
+            # Append the results dictionary to the results list
+            results.append(dict_result)
 
     return results
