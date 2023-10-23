@@ -1,3 +1,4 @@
+from itertools import groupby
 from typing import List, Dict
 import random
 import datetime
@@ -112,4 +113,81 @@ def main():
             # Append the results dictionary to the results list
             results.append(dict_result)
 
-    return results
+    # Sort the data by 'k' and 'return'
+    sorted_data = sorted(results, key=lambda x: (x["k"], x["return"]), reverse=True)
+
+    # Use groupby to group the data by 'k'
+    grouped_data = groupby(sorted_data, key=lambda x: x["k"])
+
+    # Initialize dictionaries to store the results
+    highest_returns = {}
+    lowest_returns = {}
+    mean_returns = {}
+    mean_volatilities = {}
+    mean_turnovers = {}
+    mean_drawdowns = {}
+    mean_sharpes = {}
+
+    for k, group in grouped_data:
+        group_list = list(group)
+
+        if len(group_list) > 0:
+            highest_return_dict = max(group_list, key=lambda x: x["return"])
+            lowest_return_dict = min(group_list, key=lambda x: x["return"])
+            mean_return = sum(item["return"] for item in group_list) / len(group_list)
+            mean_volatility = sum(item["volatility"] for item in group_list) / len(
+                group_list
+            )
+            mean_turnover = sum(item["turnover"] for item in group_list) / len(
+                group_list
+            )
+            mean_drawdown = sum(item["drawdown"] for item in group_list) / len(
+                group_list
+            )
+            mean_sharpe = sum(item["sharpe"] for item in group_list) / len(group_list)
+        else:
+            highest_return_dict = None
+            lowest_return_dict = None
+            mean_return = None
+
+        highest_returns[k] = highest_return_dict
+        lowest_returns[k] = lowest_return_dict
+        mean_returns[k] = mean_return
+        mean_volatilities[k] = mean_volatility
+        mean_turnovers[k] = mean_turnover
+        mean_drawdowns[k] = mean_drawdown
+        mean_sharpes[k] = mean_sharpe
+
+    stats_results = []
+    for k, mean_return in mean_returns.items():
+        stats_k = {
+            "k": k,
+            "return": [
+                mean_return,
+                [[lowest_return_dict["return"]]],
+                highest_return_dict["return"],
+            ],
+            "volatility": [
+                mean_volatilities,
+                [[lowest_return_dict["volatility"]]],
+                highest_return_dict["volatility"],
+            ],
+            "turnover": [
+                mean_turnovers,
+                [[lowest_return_dict["turnover"]]],
+                highest_return_dict["turnover"],
+            ],
+            "drawdown": [
+                mean_drawdowns,
+                [[lowest_return_dict["drawdown"]]],
+                highest_return_dict["drawdown"],
+            ],
+            "sharpe": [
+                mean_sharpes,
+                [[lowest_return_dict["sharpe"]]],
+                highest_return_dict["sharpe"],
+            ],
+        }
+        stats_results.append(stats_k)
+
+    return stats_results
