@@ -134,17 +134,17 @@ def main():
         if len(group_list) > 0:
             highest_return_dict = max(group_list, key=lambda x: x["return"])
             lowest_return_dict = min(group_list, key=lambda x: x["return"])
-            mean_return = sum(item["return"] for item in group_list) / len(group_list)
-            mean_volatility = sum(item["volatility"] for item in group_list) / len(
+            mean_return = round(Decimal(sum(item["return"] for item in group_list) / len(group_list)), 1)
+            mean_volatility = round(Decimal(sum(item["volatility"] for item in group_list) / len(
                 group_list
-            )
-            mean_turnover = sum(item["turnover"] for item in group_list) / len(
+            )), 1)
+            mean_turnover = round(Decimal(sum(item["turnover"] for item in group_list) / len(
                 group_list
-            )
-            mean_drawdown = sum(item["drawdown"] for item in group_list) / len(
+            )), 1)
+            mean_drawdown = round(Decimal(sum(item["drawdown"] for item in group_list) / len(
                 group_list
-            )
-            mean_sharpe = sum(item["sharpe"] for item in group_list) / len(group_list)
+            )), 1)
+            mean_sharpe = round(Decimal(sum(item["sharpe"] for item in group_list) / len(group_list)), 1)
         else:
             highest_return_dict = None
             lowest_return_dict = None
@@ -162,32 +162,36 @@ def main():
     for k, mean_return in mean_returns.items():
         stats_k = {
             "k": k,
-            "return": [
-                mean_return,
-                [[lowest_return_dict["return"]]],
-                highest_return_dict["return"],
-            ],
-            "volatility": [
-                mean_volatilities,
-                [[lowest_return_dict["volatility"]]],
-                highest_return_dict["volatility"],
-            ],
-            "turnover": [
-                mean_turnovers,
-                [[lowest_return_dict["turnover"]]],
-                highest_return_dict["turnover"],
-            ],
-            "drawdown": [
-                mean_drawdowns,
-                [[lowest_return_dict["drawdown"]]],
-                highest_return_dict["drawdown"],
-            ],
-            "sharpe": [
-                mean_sharpes,
-                [[lowest_return_dict["sharpe"]]],
-                highest_return_dict["sharpe"],
-            ],
+            "result_type": 'mean',
+            "return": mean_return,
+            "volatility": mean_volatilities,
+            "turnover": mean_turnovers,
+            "drawdown":mean_drawdowns,
+            "sharpe": mean_sharpes,
         }
         stats_results.append(stats_k)
+        
+        stats_k = {
+            "k": k,
+            "result_type": 'lowest',
+            "return": lowest_return_dict["return"],
+            "volatility": lowest_return_dict["volatility"],
+            "turnover": lowest_return_dict["turnover"],
+            "drawdown": lowest_return_dict["drawdown"],
+            "sharpe": lowest_return_dict["sharpe"],
+        }
+        stats_results.append(stats_k)
+
+        stats_k = {
+            "k": k,
+            "result_type": 'highest',
+            "return": highest_return_dict["return"],
+            "volatility": highest_return_dict["volatility"],
+            "turnover": highest_return_dict["turnover"],
+            "drawdown": highest_return_dict["drawdown"],
+            "sharpe": highest_return_dict["sharpe"],
+        }
+        stats_results.append(stats_k)
+
 
     return stats_results
