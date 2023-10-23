@@ -10,7 +10,6 @@ columns_formatting = ["k", "return", "volatility", "turnover", "drawdown", "shar
 # Page 29
 print("Running Scenario 1...")
 result_scenario1 = scenario1.main()
-print(result_scenario1)
 print(pd.DataFrame(result_scenario1)[["k", "result_type", "return", "volatility", "turnover", "drawdown", "sharpe"]])
 
 # Page 32
