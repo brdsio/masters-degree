@@ -10,7 +10,7 @@ from src.backtest import calculate_cumret, calculate_sharpe_ratio
 from src.config import get_data
 
 
-def main():
+def main(max_k=20):
     (
         cdi,
         ibov,
@@ -43,12 +43,11 @@ def main():
     results = []
 
     # Iterate through different values of 'k' (clusters) for k-medoids
-    for k in range(3, 21):
+    for k in range(3, max_k + 1):
         # Initialize and fit the k-medoids model
         km = KMedoidScenario5(
             prices_pivot[prices_pivot.index >= datetime.datetime(2007, 12, 30)],
             tickers,
-            debug=False,
         )
         km.fit(k=k, window=13)
         km.pesos()
