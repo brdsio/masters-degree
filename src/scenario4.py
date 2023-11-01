@@ -50,17 +50,18 @@ def main(max_k=20):
             tickers,
         )
         km.fit(k=k, window=13)
-        km.pesos()
 
         # Extract and preprocess the allocation data within the specified date range
-        pesos = km.pesos_rebals[
-            (km.pesos_rebals.date >= date_begin) & (km.pesos_rebals.date <= date_end)
+        weights = km.weights[
+            (km.weights.date >= date_begin) & (km.weights.date <= date_end)
         ].copy()
-        pesos["date"] = pd.to_datetime(pesos["date"])
+        weights["date"] = pd.to_datetime(weights["date"])
 
         # Calculate cumulative returns and turnover
         cumret, turnover = calculate_cumret(
-            pesos.pivot_table(index="date", columns="ticker", values="peso").fillna(0),
+            weights.pivot_table(index="date", columns="ticker", values="weight").fillna(
+                0
+            ),
             prices_pivot,
             prices_trading,
         )

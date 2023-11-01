@@ -39,8 +39,8 @@ class KMedoid(ABC):
     def _calculate_intergroup_allocation(self):
         pass
 
-    def _calculate_groups(self, matrix, centroids):
-        print("Calculando grupos ", centroids)
+    def _find_clusters(self, matrix, centroids):
+        print("Finding clusters ", centroids)
 
         C = {}
         clusters = matrix[centroids].idxmin(axis=1)
@@ -75,49 +75,45 @@ class KMedoidScenario4(KMedoid):
 
     def fit(self, k=3, window=3, max_iter=10):
         self.k = k
-        grupos = {}
-        precos_mes = {}
-
+        clusters = {}
         for i in range(window, self.rebalancing_dates.shape[0]):
-            filtro_datas = self.rebalancing_dates[i - window : i]
-            precos_filtro = self.prices.loc[
-                filtro_datas.date.min() : filtro_datas.date.max()
-            ]
+            dates = self.rebalancing_dates[i - window : i]
+            prices = self.prices.loc[dates.date.min() : dates.date.max()]
 
-            tickers_filtro = mi.ibov_constituents[
-                datetime.date(
-                    filtro_datas.date.max().year, filtro_datas.date.max().month, 1
-                )
+            tickers = mi.ibov_constituents[
+                datetime.date(dates.date.max().year, dates.date.max().month, 1)
             ]
-            precos_filtro = precos_filtro[tickers_filtro]
+            prices = prices[tickers].copy()
 
             # I do this because this particular stock was behaving like a fixed income instrument given a merge acquisition.
-            if filtro_datas.date.max().date() == datetime.date(2017, 10, 31):
-                precos_filtro = precos_filtro.drop(["CPFE3"], axis=1)
+            if dates.date.max().date() == datetime.date(2017, 10, 31):
+                prices = prices.drop(["CPFE3"], axis=1)
 
-            returns = precos_filtro.pct_change()[1:].dropna(axis=1)
-            returns2 = precos_filtro.pct_change()
+            returns = prices.pct_change()
 
-            corr = returns.corr()
+            corr = returns[1:].dropna(axis=1).corr()
 
             dist = correlDist(corr)
 
-            fuzzy = self._calcular_fuzzy_kmedoids(k, dist, max_iter, returns, returns2)
-            grupos[filtro_datas.date.max().date()] = fuzzy
-            precos_mes[filtro_datas.date.max().date()] = precos_filtro
+            cluster = self._calculate_kmedoids(k, dist, max_iter, returns)
+            intergroup_allocation = self._calculate_intergroup_allocation(
+                cluster, dist, returns
+            )
+            clusters[dates.date.max().date()] = intergroup_allocation
 
-        self.precos_mes = precos_mes
-        self.grupos_fuzzy = grupos
+        self.clusters = clusters
+        self._calculate_intragroup_allocation()
 
-    def _calcular_fuzzy_kmedoids(self, k, matrix, max_iter, returns, returns2):
+    def _calculate_kmedoids(self, k, matrix, max_iter, returns):
         centroids = (
-            (returns.std() * np.sqrt(252)).sort_values()[:k].index.tolist()
-        )  # genial
-
+            (returns[1:].dropna(axis=1).std() * np.sqrt(252))
+            .sort_values()[:k]
+            .index.tolist()
+        )
         centroids_swap = copy.copy(centroids)
 
         for i in range(max_iter):
-            C = self._calculate_groups(matrix, centroids)
+            C = self._find_clusters(matrix, centroids)
 
             for centroid, data in C.items():
                 new_centroid = np.argmin(np.sum(matrix.loc[data, data], axis=1))
@@ -131,50 +127,56 @@ class KMedoidScenario4(KMedoid):
         else:
             print("Halted")
 
-        grupos_fuzzy = self._calcular_fuzzy(C, matrix, returns2)
-        return grupos_fuzzy
+        return C
 
-    def _calcular_fuzzy(self, C, dist, returns, m=2):
-        preco = (1 + returns).cumprod().fillna(1)
+    def _calculate_intergroup_allocation(self, C, dist, returns, m=2):
+        stock_cumret = (1 + returns).cumprod().fillna(1)
 
-        retorno_periodo = (
-            preco[preco.index == preco.index.max()]
+        stock_total_return = (
+            stock_cumret[stock_cumret.index == stock_cumret.index.max()]
             .stack()
             .reset_index()
-            .rename(columns={0: "retorno"})
+            .rename(columns={0: "stock_total_return"})
         )
 
-        grupos_fuzzy = {}
+        intergroup_allocation = {}
 
-        grupos = list(C.keys())
-        for g in grupos:
-            # print(g)
+        groups = list(C.keys())
+        for g in groups:
             dft = pd.DataFrame(C[g], columns=["ticker"])
-            dft = dft.merge(retorno_periodo, how="left", on="ticker")
-            dft["peso"] = dft.retorno / dft.retorno.sum()
-            grupos_fuzzy[g] = dft
+            dft = dft.merge(stock_total_return, how="left", on="ticker")
+            dft["weight"] = dft.stock_total_return / dft.stock_total_return.sum()
+            intergroup_allocation[g] = dft
 
-        return grupos_fuzzy
+        return intergroup_allocation
 
-    def pesos(self):
-        pesos_rebals = []
-        for date, values in self.grupos_fuzzy.items():
-            lista_pesos = []
-            grupos = values.keys()
+    def _calculate_intragroup_allocation(self):
+        list_weights = []
+        for date, values in self.clusters.items():
+            list_weights_clusters = []
+            centroids = values.keys()
 
-            for g in grupos:
-                pesos = values[g].set_index("ticker").peso
-                pesos = (pesos / (pesos.sum())) * 1 / self.k
-                pesos.name = "peso"
-                pesos = pesos.reset_index().rename(columns={"index": "ticker"})
-                lista_pesos.append(pesos)
-            pesos = pd.concat(lista_pesos)
-            pesos = pd.merge(pesos, self.tickers, how="left", on="ticker")
-            pesos["date"] = date
+            for c in centroids:
+                weights_cluster = values[c].set_index("ticker").weight
+                weights_cluster = (
+                    (weights_cluster / (weights_cluster.sum())) * 1 / self.k
+                )
+                weights_cluster.name = "weight"
+                weights_cluster = weights_cluster.reset_index().rename(
+                    columns={"index": "ticker"}
+                )
+                list_weights_clusters.append(weights_cluster)
+            weights = pd.concat(list_weights_clusters)
+            weights = pd.merge(weights, self.tickers, how="left", on="ticker")
+            weights["date"] = date
 
-            pesos_rebals.append(pesos)
+            list_weights.append(weights)
 
-        self.pesos_rebals = pd.concat(pesos_rebals)
+        self._weights = pd.concat(list_weights)
+
+    @property
+    def weights(self):
+        return self._weights
 
 
 class KMedoidScenario1(KMedoid):
@@ -241,7 +243,7 @@ class KMedoidScenario1(KMedoid):
 
         for i in range(max_iter):
             # 2. Associate each data point to the closest medoid.
-            C = self._calculate_groups(matrix, centroids)
+            C = self._find_clusters(matrix, centroids)
 
             for centroid, data in C.items():
                 new_centroid = np.argmin(np.sum(matrix.loc[data, data], axis=1))
@@ -326,7 +328,7 @@ class KMedoidScenario2(KMedoid):
 
         for i in range(max_iter):
             # 2. Associate each data point to the closest medoid.
-            C = self._calculate_groups(matrix, centroids)
+            C = self._find_clusters(matrix, centroids)
 
             for centroid, data in C.items():
                 new_centroid = np.argmin(np.sum(matrix.loc[data, data], axis=1))
@@ -393,7 +395,7 @@ class KMedoidScenario3(KMedoid):
         centroids_swap = copy.copy(centroids)
 
         for i in range(max_iter):
-            C = self._calculate_groups(matrix, centroids)
+            C = self._find_clusters(matrix, centroids)
 
             for centroid, data in C.items():
                 new_centroid = np.argmin(np.sum(matrix.loc[data, data], axis=1))
@@ -486,29 +488,30 @@ class KMedoidScenario5(KMedoid):
             if filtro_datas.date.max().date() == datetime.date(2017, 10, 31):
                 precos_filtro = precos_filtro.drop(["CPFE3"], axis=1)
 
-            returns = precos_filtro.pct_change()[1:].dropna(axis=1)
-            returns2 = precos_filtro.pct_change()
+            returns = precos_filtro.pct_change()
 
-            corr = returns.corr()
+            corr = returns[1:].dropna(axis=1).corr()
 
             dist = correlDist(corr)
 
-            fuzzy = self._calcular_fuzzy_kmedoids(k, dist, max_iter, returns, returns2)
+            fuzzy = self._calcular_fuzzy_kmedoids(k, dist, max_iter, returns)
             grupos[filtro_datas.date.max().date()] = fuzzy
             precos_mes[filtro_datas.date.max().date()] = precos_filtro
 
         self.precos_mes = precos_mes
         self.grupos_fuzzy = grupos
 
-    def _calcular_fuzzy_kmedoids(self, k, matrix, max_iter, returns, returns2):
+    def _calcular_fuzzy_kmedoids(self, k, matrix, max_iter, returns):
         centroids = (
-            (returns.std() * np.sqrt(252)).sort_values()[:k].index.tolist()
+            (returns[1:].dropna(axis=1).std() * np.sqrt(252))
+            .sort_values()[:k]
+            .index.tolist()
         )  # genial
 
         centroids_swap = copy.copy(centroids)
 
         for i in range(max_iter):
-            C = self._calculate_groups(matrix, centroids)
+            C = self._find_clusters(matrix, centroids)
 
             for centroid, data in C.items():
                 new_centroid = np.argmin(np.sum(matrix.loc[data, data], axis=1))
@@ -522,12 +525,12 @@ class KMedoidScenario5(KMedoid):
         else:
             print("Halted")
 
-        grupos_fuzzy = self._calcular_fuzzy(C, matrix, returns2)
+        grupos_fuzzy = self._calcular_fuzzy(C, matrix, returns)
         return grupos_fuzzy
 
     def _calcular_fuzzy(self, C, dist, returns, m=2):
         preco = (1 + returns).cumprod().fillna(1)
-        qtd_dias = len(preco)
+
         retorno_periodo = (
             preco[preco.index == preco.index.max()]
             .stack()
