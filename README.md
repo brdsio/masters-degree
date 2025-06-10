@@ -1,3 +1,7 @@
+# A framework to perform asset allocation based on partitional clustering
+
+Reproducible code of my master's [degree final work](https://ieeexplore.ieee.org/abstract/document/9115637/).
+
 
 Create an environment using anaconda with the command below.
 ```console
